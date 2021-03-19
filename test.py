@@ -4,13 +4,16 @@ from time import sleep
 
 def inMotion(robot):
     while not robot.GetStatusRobot()['EOM']:
-        print("Moving")
+        if robot.is_in_error():
+            print("Error!")
+            exit()
     
     print("Done moving!")
 
-IP_ADDRESS = '192.168.0.100'
+IP_ADDRESS = '192.168.1.36'
+FIRMWARE = '8.1.9'
 
-robot = MecademicRobot.RobotController(IP_ADDRESS)
+robot = MecademicRobot.RobotController(IP_ADDRESS, FIRMWARE)
 if robot.connect():
     print("Connected to robot!")
 else:

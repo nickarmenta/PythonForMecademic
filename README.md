@@ -20,7 +20,7 @@ To be able to use the module without unexpected errors, the user must have a cop
 
 There are two ways to download the python driver for the Mecademic Robots. The first option is to download the MecademicRobot.py module from the Mecademic Github. The module can then be used in projects just like any other python module. The other option is download and install it to your computer through pip. Pip will place the MecademicRobot package with the rest of your python packages in your path and can easily be imported to multiple projects. To install the package through pip, Mecadmic python_driver Github repository url must be given. Pip will download and install the package on your machine and place it in the python local packages directory. This is done by running the following command:
 
-```
+```sh
 pip install git+https://github.com/Mecademic/python_driver
 ``` 
 If the package is in your python package path, it can be imported into any of your python projects without having a copy in your directory.
@@ -33,7 +33,7 @@ To run a Mecademic Robot with the MecademicRobot package, two options present it
 
 To use the MecademicRobot package in an interactive terminal, the user can either run the python file RobotController.py with the -i modifier in a terminal as follows:
 
-```
+```sh
 python -i <file-path>/MecademicRobot.py 
 ```
 or
@@ -41,36 +41,36 @@ or
 C:<path-to-package>> python -i MecademicRobot.py 
 ```
 or, if the package is in your python package path, you can also start a python shell and import it:
-```
+```py
 python
 >>> import MecademicRobot
 ```
 
-This will open a python terminal with the module already imported. From there you need to connect to the Mecademic Robot before being able to perform actions. This is done by making an instance of the class RobotController by passing the IP Address of the Robot as an argument and using the function Connect():
-```
+This will open a python terminal with the module already imported. From there you need to connect to the Mecademic Robot before being able to perform actions. This is done by making an instance of the class RobotController by passing the IP Address of the Robot as an argument and using the function connect():
+```py
 >>> robot = MecademicRobot.RobotController('192.168.0.100')
->>> robot.Connect()
+>>> robot.connect()
 ```
 
 Once succesfully connected to the Robot, you are able to start performing actions. To get it ready for operations, it must be activated and homed or it will fall in error. To do so, the following functions are run:
 
-```
->>> robot.Activate()
->>> robot.Home()
+```py
+>>> robot.ActivateRobot()
+>>> robot.home()
 ```
 
 The Robot is now ready to perform operations. [The user programming manual](https://mecademic.com/resources/documentation) or the documentation in the module is sufficiant to be able to make the Robot perform actions and control the robot. 
 
 When done with the Robot and desire to power it off, it must first be deactivated and disconnected to avoid issues and problems. It is done by two functions:
 
-```
->>> robot.Deactivate()
->>> robot.Disconnect()
+```py
+>>> robot.DeactivateRobot()
+>>> robot.disconnect()
 ```
 
 If during use the Robot encounters an error, it will go into error mode. In this mode, the module will block any command to the Robot unless its an error reset. To properly reset errors on the Robot, the following function must be run:
 
-```
+```py
 >>> robot.ResetError()
 ```
 
@@ -90,9 +90,9 @@ An example of a script for a Mecademic Robot would be:
 ```py
 import MecademicRobot
 robot = MecademicRobot.RobotController('192.168.0.100')
-robot.Connect()
-robot.Activate()
-robot.Home()
+robot.connect()
+robot.ActivateRobot()
+robot.home()
 robot.SetBlending(0)
 robot.SetJointVel(100)
 while True:
@@ -171,13 +171,13 @@ An example for how to use the RobotFeedback module is as follows:
 ```py
 import MecademicRobot
 feedback = MecademicRobot.RobotFeedback('192.168.0.100', '7.0.6')
-feedback.Connect()
+feedback.connect()
 while(True):
-	feedback.getData()
+	feedback.get_data()
 	print(feedback.joints)
 	print(feedback.cartesian)
 ```
-By calling __getData()__, the values of joints and cartesian get updated with the latest received data from the robot. The format of the data for joints is (joint_1, joint_2, ..., joint_n), where n is the number of joints on the Robot and the values are in degrees. For the format of the data in cartesian, the data is of the form (x, y, z, alpha, beta, gamma), where x, y and z are in mm and alpha, beta and gamma are in degrees. This module works at its best when it is run in parallel with RobotController, either as another runnable, threading, etc. When in parallel, the live data will be refreshed at a faster speed while controlling the robot. 
+By calling get_data(), the values of joints and cartesian get updated with the latest received data from the robot. The format of the data for joints is (joint_1, joint_2, ..., joint_n), where n is the number of joints on the Robot and the values are in degrees. For the format of the data in cartesian, the data is of the form (x, y, z, alpha, beta, gamma), where x, y and z are in mm and alpha, beta and gamma are in degrees. This module works at its best when it is run in parallel with RobotController, either as another runnable, threading, etc. When in parallel, the live data will be refreshed at a faster speed while controlling the robot. 
 
 ## Getting Help
 
@@ -190,5 +190,3 @@ All packages in this repository are licensed under the MIT license.
 ## Authors 
 
 * **Mecademic** - *Continuous work*
-
-

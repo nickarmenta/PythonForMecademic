@@ -24,21 +24,36 @@ class RobotController:
 
     """
 
-    def __init__(self, address):
-        """Constructor for an instance of the Class Mecademic Robot.
+    def __init__(self, address, firmware_version):
+        """Constructor for an instance of the class Mecademic robot.
 
         Parameters
         ----------
         address : string
-            The IP address associated to the Mecademic Robot.
+            The IP address associated to the Mecademic robot.
+        firmware_version : string
+            Firmware version of the Mecademic Robot.
 
         """
         self.address = address
-        self.socket = None
+        self.controlSocket = None
+        self.feedbackSocket = None
         self.EOB = 1
         self.EOM = 1
         self.error = False
         self.queue = False
+
+        self.robot_status = ()
+        self.gripper_status = ()
+        self.joints = () # Joint Angles, angles in degrees | [theta_1, theta_2, ... theta_n]
+        self.cartesian = () # Cartesian coordinates, distances in mm, angles in degrees | [x,y,z,alpha,beta,gamma]
+        self.joints_vel = ()
+        self.torque = ()
+        self.accelerometer = ()
+        self.last_msg_chunk = ''
+        a = re.search(r'(\d+)\.(\d+)\.(\d+)', firmware_version)
+        self.version = a.group(0)
+        self.version_regex = [int(a.group(1)), int(a.group(2)), int(a.group(3))]
 
     def is_in_error(self):
         """Status method that checks whether the Mecademic Robot is in error mode.
@@ -82,20 +97,20 @@ class RobotController:
 
         """
         try:
-            self.socket = socket.socket()
-            self.socket.settimeout(0.1)  # 100ms
+            self.controlSocket = socket.socket()
+            self.controlSocket.settimeout(0.1)  # 100ms
             try:
-                self.socket.connect((self.address, 10000))
+                self.controlSocket.connect((self.address, 10000))
             except socket.timeout:
                 raise TimeoutError
 
             # Receive confirmation of connection
-            if self.socket is None:
+            if self.controlSocket is None:
                 raise RuntimeError
 
-            self.socket.settimeout(10)  # 10 seconds
+            self.controlSocket.settimeout(10)  # 10 seconds
             try:
-                response = self.socket.recv(1024).decode('ascii')
+                response = self.controlSocket.recv(1024).decode('ascii')
             except socket.timeout:
                 raise RuntimeError
 
@@ -113,13 +128,44 @@ class RobotController:
         except RuntimeError:
             return False
 
+        try:
+            self.feedbackSocket = socket.socket()
+            self.feedbackSocket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY,1)
+            self.feedbackSocket.settimeout(1) #1s
+            try:
+                self.feedbackSocket.connect((self.address, 10001)) #connect to the robot's address
+            except socket.timeout: #catch if the robot is not connected to in time
+                raise TimeoutError
+            # Receive confirmation of connection
+            if self.feedbackSocket is None: #check that feedbackSocket is not connected to nothing
+                raise RuntimeError
+            self.feedbackSocket.settimeout(1) #1s
+            try:
+                if(self.version_regex[0] <= 7):
+                    self.get_data()
+                elif(self.version_regex[0] > 7): #RobotStatus and GripperStatus are sent on 10001 upon connecting from 8.x firmware
+                    msg = self.feedbackSocket.recv(256).decode('ascii') #read message from robot
+                    self._get_robot_status(msg)
+                    self._get_gripper_status(msg)
+                return True
+            except socket.timeout:
+                raise RuntimeError
+        except TimeoutError:
+            return False
+        # OTHER USER !!!
+        except RuntimeError:
+            return False
+
     def disconnect(self):
         """Disconnects Mecademic Robot object from physical Mecademic Robot.
 
         """
-        if(self.socket is not None):
-            self.socket.close()
-            self.socket = None
+        if(self.controlSocket is not None):
+            self.controlSocket.close()
+            self.controlSocket = None
+        if self.feedbackSocket is not None:
+            self.feedbackSocket.close()
+            self.feedbackSocket = None
 
     @staticmethod
     def _response_contains(response, code_list):
@@ -159,13 +205,13 @@ class RobotController:
             Returns whether the message is sent.
 
         """
-        if self.socket is None or self.error:               #check that the connection is established or the robot is in error
+        if self.controlSocket is None or self.error:               #check that the connection is established or the robot is in error
             return False                                    #if issues detected, no point in trying to send a cmd that won't reach the robot
         cmd = cmd + '\0'
         status = 0
         while status == 0:
             try:                                            #while the message hasn't been sent
-                status = self.socket.send(cmd.encode('ascii'))  #send command in ascii encoding
+                status = self.controlSocket.send(cmd.encode('ascii'))  #send command in ascii encoding
             except:
                 break
             if status != 0:
@@ -190,7 +236,7 @@ class RobotController:
             Response received from Mecademic Robot.
 
         """
-        if self.socket is None:                         #check that the connection is established
+        if self.controlSocket is None:                         #check that the connection is established
             return                                      #if no connection, nothing to receive
         response_list = []
         response_found = False
@@ -198,10 +244,10 @@ class RobotController:
             response_list.append(f'[{str(x)}]')
         error_found = False
         error_list = [f'[{str(i)}]' for i in range(1000, 1039)]+[f'[{str(i)}]' for i in [3001,3003,3005,3009,3014,3026]]  #Make error codes in a comparable format
-        self.socket.settimeout(delay)                   #set read timeout to desired delay
+        self.controlSocket.settimeout(delay)                   #set read timeout to desired delay
         while not response_found and not error_found:   #while no answers have been received, keep looking
             try:
-                response = self.socket.recv(1024).decode('ascii')   #read message from robot
+                response = self.controlSocket.recv(1024).decode('ascii')   #read message from robot
             except socket.timeout:
                 return                                  #if timeout reached, either connection lost or nothing was sent from robot (damn disabled EOB and EOM)
             if(len(response_list)!=0):                  #if the message has a code to look for, find them
@@ -538,23 +584,13 @@ class RobotController:
         cmd = 'GripperClose'
         return self.exchange_msg(cmd)
 
-    def MoveJoints(self, theta_1, theta_2, theta_3, theta_4, theta_5, theta_6):
+    def MoveJoints(self, jointPose):
         """Moves the joints of the Mecademic Robot to the desired angles.
 
         Parameters
         ----------
-        theta_1 : float
-            Angle of joint 1
-        theta_2 : float
-            Angle of joint 2
-        theta_3 : float
-            Angle of joint 3
-        theta_4 : float
-            Angle of joint 4
-        theta_5 : float
-            Angle of joint 5
-        theta_6 : float
-            Angle of joint 6
+        jointPose : float array
+            [theta0,theta1,theta2,theta3,theta4,theta5]
 
         Returns
         -------
@@ -563,27 +599,17 @@ class RobotController:
 
         """
         raw_cmd = 'MoveJoints'
-        cmd = self._build_command(raw_cmd,[theta_1,theta_2,theta_3,theta_4,theta_5,theta_6])
+        cmd = self._build_command(raw_cmd,jointPose)
         return self.exchange_msg(cmd)
 
-    def MoveLin(self, x, y, z, alpha, beta, gamma):
+    def MoveLin(self, linPose):
         """Moves the Mecademic Robot tool reference in a straight line to final
         point with specified direction
 
         Parameters
         ----------
-        x : float
-            Final x coordinate.
-        y : float
-            Final y coordinate.
-        z : float
-            Final z coordinate.
-        alpha : float
-            Final Alpha angle.
-        beta : float
-            Final Beta angle.
-        gamma : float
-            Final Gamma angle.
+        linPose : float array
+            [x,y,z,alpha,beta,gamma]
 
         Returns
         -------
@@ -592,26 +618,16 @@ class RobotController:
 
         """
         raw_cmd = 'MoveLin'
-        cmd = self._build_command(raw_cmd,[x,y,z,alpha,beta,gamma])
+        cmd = self._build_command(raw_cmd,linPose)
         return self.exchange_msg(cmd)
 
-    def MoveLinRelTRF(self, x, y, z, alpha, beta, gamma):
+    def MoveLinRelTRF(self, toolPose):
         """Moves the Mecademic Robot tool reference frame to specified coordinates and heading.
 
         Parameters
         ----------
-        x : float
-            New Reference x coordinate.
-        y : float
-            New Reference y coordinate.
-        z : float
-            New Reference z coordinate.
-        alpha : float
-            New Reference Alpha angle.
-        beta : float
-            New Reference Beta angle.
-        gamma : float
-            New Reference Gamma angle.
+        linPose : float array
+            [x,y,z,alpha,beta,gamma]
 
         Returns
         -------
@@ -623,23 +639,13 @@ class RobotController:
         cmd = self._build_command(raw_cmd,[x,y,z,alpha,beta,gamma])
         return self.exchange_msg(cmd)
 
-    def MoveLinRelWRF(self, x, y, z, alpha, beta, gamma):
+    def MoveLinRelWRF(self, workPose):
         """Moves the Mecademic Robot world reference frame to specified coordinates and heading.
 
         Parameters
         ----------
-        x : float
-            New Reference x coordinate.
-        y : float
-            New Reference y coordinate.
-        z : float
-            New Reference z coordinate.
-        alpha : float
-            New Reference Alpha angle.
-        beta : float
-            New Reference Beta angle.
-        gamma : float
-            New Reference Gamma angle.
+        linPose : float array
+            [x,y,z,alpha,beta,gamma]
 
         Returns
         -------
@@ -651,24 +657,14 @@ class RobotController:
         cmd = self._build_command(raw_cmd,[x,y,z,alpha,beta,gamma])
         return self.exchange_msg(cmd)
 
-    def MovePose(self, x, y, z, alpha, beta, gamma):
+    def MovePose(self, linPose):
         """Moves the Mecademic Robot joints to have the TRF at (x,y,z)
         with heading (alpha, beta, gamma).
 
         Parameters
         ----------
-        x : float
-            Final x coordinate.
-        y : float
-            Final y coordinate.
-        z : float
-            Final z coordinate.
-        alpha : float
-            Final Alpha angle.
-        beta : float
-            Final Beta angle.
-        gamma : float
-            Final Gamma angle.
+        linPose : float array
+            [x,y,z,alpha,beta,gamma]
 
         Returns
         -------
@@ -677,7 +673,7 @@ class RobotController:
 
         """
         raw_cmd = 'MovePose'
-        cmd = self._build_command(raw_cmd,[x,y,z,alpha,beta,gamma])
+        cmd = self._build_command(raw_cmd,linPose)
         return self.exchange_msg(cmd)
 
     def SetBlending(self, p):
@@ -867,24 +863,14 @@ class RobotController:
         cmd = self._build_command(raw_cmd,[velocity])
         return self.exchange_msg(cmd)
 
-    def SetTRF(self, x, y, z, alpha, beta, gamma):
+    def SetTRF(self, tcpOffset):
         """Sets the Mecademic Robot TRF at (x,y,z) and heading (alpha, beta, gamma)
         with respect to the FRF.
 
         Parameters
         ----------
-        x : float
-            Final x coordinate.
-        y : float
-            Final y coordinate.
-        z : float
-            Final z coordinate.
-        alpha : float
-            Final Alpha angle.
-        beta : float
-            Final Beta angle.
-        gamma : float
-            Final Gamma angle.
+        tcpOffset : float array
+            [x,y,z,alpha,beta,gamma]
 
         Returns
         -------
@@ -893,27 +879,17 @@ class RobotController:
 
         """
         raw_cmd = 'SetTRF'
-        cmd = self._build_command(raw_cmd,[x,y,z,alpha,beta,gamma])
+        cmd = self._build_command(raw_cmd,tcpOffset)
         return self.exchange_msg(cmd)
 
-    def SetWRF(self, x, y, z, alpha, beta, gamma):
+    def SetWRF(self, workOffset):
         """Sets the Mecademic Robot WRF at (x,y,z) and heading (alpha, beta, gamma)
         with respect to the BRF.
 
         Parameters
         ----------
-        x : float
-            Final x coordinate.
-        y : float
-            Final y coordinate.
-        z : float
-            Final z coordinate.
-        alpha : float
-            Final Alpha angle.
-        beta : float
-            Final Beta angle.
-        gamma : float
-            Final Gamma angle.
+        workOffset : float array
+            [x,y,z,alpha,beta,gamma]
 
         Returns
         -------
@@ -922,7 +898,7 @@ class RobotController:
 
         """
         raw_cmd = 'SetWRF'
-        cmd = self._build_command(raw_cmd,[x,y,z,alpha,beta,gamma])
+        cmd = self._build_command(raw_cmd,workOffset)
         return self.exchange_msg(cmd)
 
     def GetStatusRobot(self):
@@ -992,7 +968,7 @@ class RobotController:
 
         """
         cmd = 'GetJoints'
-        return self.exchange_msg(cmd)
+        return list(self.exchange_msg(cmd))
 
     def GetPose(self):
         """Retrieves the current pose of the Mecademic Robot TRF with
@@ -1005,7 +981,7 @@ class RobotController:
 
         """
         cmd = 'GetPose'
-        return self.exchange_msg(cmd)
+        return list(self.exchange_msg(cmd))
 
     def PauseMotion(self):
         """Stops the robot movement and holds until ResumeMotion.

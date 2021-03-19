@@ -36,77 +36,7 @@ class RobotFeedback:
         Version_regex.
 
     """
-
-    def __init__(self, address, firmware_version):
-        """Constructor for an instance of the class Mecademic robot.
-
-        Parameters
-        ----------
-        address : string
-            The IP address associated to the Mecademic robot.
-        firmware_version : string
-            Firmware version of the Mecademic Robot.
-
-        """
-        self.address = address
-        self.feedbackSocket = None
-        self.robot_status = ()
-        self.gripper_status = ()
-        self.joints = () #Joint Angles, angles in degrees | [theta_1, theta_2, ... theta_n]
-        self.cartesian = () #Cartesian coordinates, distances in mm, angles in degrees | [x,y,z,alpha,beta,gamma]
-        self.joints_vel =()
-        self.torque =()
-        self.accelerometer =()
-        self.last_msg_chunk = ''
-        a = re.search(r'(\d+)\.(\d+)\.(\d+)', firmware_version)
-        self.version = a.group(0)
-        self.version_regex = [int(a.group(1)), int(a.group(2)), int(a.group(3))]
-
-    def connect(self):
-        """Connects Mecademic Robot object communication to the physical Mecademic Robot.
-
-        Returns
-        -------
-        status : boolean
-            Return whether the connection is established.
-
-        """
-        try:
-            self.feedbackSocket = socket.socket()
-            self.feedbackSocket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY,1)
-            self.feedbackSocket.settimeout(1) #1s
-            try:
-                self.feedbackSocket.connect((self.address, 10001)) #connect to the robot's address
-            except socket.timeout: #catch if the robot is not connected to in time
-                raise TimeoutError
-            # Receive confirmation of connection
-            if self.feedbackSocket is None: #check that feedbackSocket is not connected to nothing
-                raise RuntimeError
-            self.feedbackSocket.settimeout(1) #1s
-            try:
-                if(self.version_regex[0] <= 7):
-                    self.get_data()
-                elif(self.version_regex[0] > 7): #RobotStatus and GripperStatus are sent on 10001 upon connecting from 8.x firmware
-                    msg = self.feedbackSocket.recv(256).decode('ascii') #read message from robot
-                    self._get_robot_status(msg)
-                    self._get_gripper_status(msg)
-                return True
-            except socket.timeout:
-                raise RuntimeError
-        except TimeoutError:
-            return False
-        # OTHER USER !!!
-        except RuntimeError:
-            return False
-
-    def disconnect(self):
-        """Disconnects Mecademic Robot object from physical Mecademic Robot.
-
-        """
-        if self.feedbackSocket is not None:
-            self.feedbackSocket.close()
-            self.feedbackSocket = None
-
+    
     def get_data(self, delay=0.1):
         """Receives message from the Mecademic Robot and 
         saves the values in appropriate variables.
@@ -133,7 +63,6 @@ class RobotFeedback:
                     self._get_joints(response)
                     self._get_cartesian(response)
                     self._get_joints_vel(response)
-                    self._get_torque_ratio(response)
                     self._get_accelerometer(response)
         except TimeoutError:
             pass
@@ -154,23 +83,6 @@ class RobotFeedback:
         for resp_code in code:
             if response.find(resp_code) != -1:
                 self.robot_status = self._decode_msg(response, resp_code)
-
-    def _get_gripper_status(self, response):
-        """Gets the values of GripperStatus bits from the message sent by
-        the Robot upon connecting.
-        Values saved to attribute robotstatus of the object.
-
-        Parameters
-        ----------
-        response : string
-            Message received from the robot.
-
-        """
-        code = None
-        code = self._get_response_code('GripperStatus')
-        for resp_code in code:
-            if response.find(resp_code) != -1:
-                self.gripper_status = self._decode_msg(response,resp_code)
 
     def _get_joints(self, response):
         """Gets the joint values of the variables from the message sent by the Robot.

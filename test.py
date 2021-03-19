@@ -29,8 +29,7 @@ newPose = list(robot.GetPose())
 newPose[2] -= 20
 print(f"New Position: {newPose}")
 robot.SetCartLinVel(5)
-robot.MoveLin(newPose[0], newPose[1], newPose[2], 
-                newPose[3], newPose[4], newPose[5])
+robot.MoveLin(newPose)
 
 x = threading.Thread(target=inMotion, args=(robot,))
 x.start()

@@ -3,7 +3,7 @@
 BASE="mecademic:latest"
 
 # Build image
-docker build -t $BASE .
+# docker build -t $BASE .
 
 # Run container
 docker run --rm -it \

@@ -1,8 +1,6 @@
-![Mecademic](./docs/logo/mecademic_logo.jpg  "Mecademic")
+# Python control for Mecademic
 
-# Mecademic Python API
-
-A python module designed for Robot products from Mecademic. The module offers tools that give access to all the features of the Mecademic Robots such as MoveLin and MoveJoints. The module can be started from a terminal or a python application and controls the Mecademic Products. 
+A python module designed for the Meca500 robots. The module offers tools that give access to most features of the Mecademic Robots as well as useful movement and settings tools.
 
 #### Supported Robots
 
@@ -16,35 +14,43 @@ These instructions will allow you to control the Robots from Mecademic through a
 
 To be able to use the module without unexpected errors, the user must have a copy of python installed on their machine and it is recommended to use python version 3.6 or higher. [Python](https://www.python.org/) can be installed from its main website (a reboot will be require after the installation to complete the setup). 
 
-## Downloading the package
+## Installing the package
 
-There are two ways to download the python driver for the Mecademic Robots. The first option is to download the MecademicRobot.py module from the Mecademic Github. The module can then be used in projects just like any other python module. The other option is download and install it to your computer through pip. Pip will place the MecademicRobot package with the rest of your python packages in your path and can easily be imported to multiple projects. To install the package through pip, Mecadmic python_driver Github repository url must be given. Pip will download and install the package on your machine and place it in the python local packages directory. This is done by running the following command:
+You can use pip to install the library:
 
 ```sh
-pip install git+https://github.com/Mecademic/python_driver
+user@host:~$ pip install git+https://github.com/nickarmenta/PythonForMecademic
 ``` 
-If the package is in your python package path, it can be imported into any of your python projects without having a copy in your directory.
 
-## Running a Robot from Mecademic with the package
-
-To run a Mecademic Robot with the MecademicRobot package, two options present itself. The first is to use it in an interactive terminal. The other is to use it as a dependency of a runnable script.
-
-#### Interactive Terminal 
-
-To use the MecademicRobot package in an interactive terminal, the user can either run the python file RobotController.py with the -i modifier in a terminal as follows:
+And/or build off the provided Dockerfile
 
 ```sh
-python -i <file-path>/MecademicRobot.py 
-```
-or
-```
-C:<path-to-package>> python -i MecademicRobot.py 
-```
-or, if the package is in your python package path, you can also start a python shell and import it:
+user@host:~$ docker build mecademic:latest .
+``` 
+
+## Using the library
+
+### Startup
+
+Start by importing the library and connecting to then initializing the robot.
+
 ```py
-python
->>> import MecademicRobot
+import mecademic
+robot = mecademic.Robot("192.168.0.100")
+robot.Startup()
 ```
+
+You can now move your robot around in multiple ways
+
+```py
+# Positioning the joints in degrees [j0,j1,j2,j3,j4,j5]
+robot.MoveJ([0,-60,60,0,0,0])
+import mecademic
+robot = mecademic.Robot("192.168.0.100")
+robot.Startup()
+```
+
+
 
 This will open a python terminal with the module already imported. From there you need to connect to the Mecademic Robot before being able to perform actions. This is done by making an instance of the class RobotController by passing the IP Address of the Robot as an argument and using the function connect():
 ```py

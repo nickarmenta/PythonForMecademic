@@ -7,6 +7,4 @@ RUN git clone https://github.com/nickarmenta/PythonForMecademic
 WORKDIR /PythonForMecademic
 
 RUN pip install -r /PythonForMecademic/requirements.txt
-RUN python /PythonForMecademic/setup.py
-
-CMD ["python","/test.py"]
+RUN python /PythonForMecademic/setup.py install

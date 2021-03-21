@@ -86,6 +86,10 @@ class Robot:
 
         return self.connected
 
+    # Easy setup routine
+    def Startup(self):
+        if self.Activate(): return self.Home()
+    
     # Ease of use 0-100% global speed adjustment
     def SetSpeed(self, percentage):
         # If speed is provided as fractional change to percentage

@@ -105,3 +105,6 @@ venv.bak/
 
 # VS Code stuff
 *.code-workspace
+
+# Test stuff
+test.py

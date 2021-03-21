@@ -43,14 +43,10 @@ class Robot:
         self.ip = ip   
         self.connected = False
         # Initialize tool and work reference frames
-        self.pose = 0
-        self.poses = [[0,0,0,0,0,0]]
-        self.joint = 0
-        self.joints = [[0,-60,60,0,0,0]]
-        self.tool = 0
-        self.toolFrames = [[0,0,0,0,0,0]]
-        self.work = 0
-        self.workPlanes = [[0,0,0,0,0,0]]
+        self.pose = {'stow': [75,0,240,0,90,0]}
+        self.joints = {'stow': [0,-60,60,0,0,0]}
+        self.toolFrame = {'flange': [0,0,0,0,0,0]}
+        self.workFrame = {'base': [0,0,0,0,0,0]}
 
     # Connect to both control and feedback servers
     def Connect(self):
@@ -143,23 +139,38 @@ class Robot:
         if self.GetStatus('homed'): return True
         else: return self.SendCommand('Home')            
 
+    # Move robot to target "pose" list relative to work plane
+    def MovePose(self, pose):
+        if self.GetStatus('paused'): self.ResumeMove()
+        sentPose = self._returnList(self.pose, pose)
+        if sentPose is not None: return self.SendCommand(f'MovePose{tuple(sentPose)}')
+        else: return False
+
     # Move robot to target "joints" list
-    def MoveJ(self, joints):
+    def MoveJoints(self, joints):
         if not self._checkJointLimits(joints):
             logging.warning("Target position outside joint limits!")
             return False
-        else: return self.SendCommand(f'MoveJoints{tuple(joints)}')            
+        if self.GetStatus('paused'): self.ResumeMove()
+        sentJoints = self._returnList(self.joint, joints)
+        if sentJoints is not None: return self.SendCommand(f'MoveJoints{tuple(sentJoints)}') 
+        else: return False        
 
     # Jog robot at target "joints" speed
     def MoveJV(self, joints):
         if not self._checkJointSpeedLimits(joints):
             logging.warning("Target speed outside joint limits!")
             return False
-        else: return self.SendCommand(f'MoveJointsVel{tuple(joints)}')            
+        else:
+            if self.GetStatus('paused'): self.ResumeMove()
+            return self.SendCommand(f'MoveJointsVel{tuple(joints)}')            
 
     # Move robot linearly to target "pose" list relative to work frame
-    def MoveL(self, pose):
-        return self.SendCommand(f'MoveLin{tuple(pose)}')            
+    def MoveLinear(self, pose):
+        if self.GetStatus('paused'): self.ResumeMove()
+        sentPose = self._returnList(self.pose, pose)
+        if sentPose is not None: return self.SendCommand(f'MoveLin{tuple(sentPose)}') 
+        else: return False
 
     # Move robot in by "pose" list relative to tool frame
     def MoveToolRel(self, pose):
@@ -176,10 +187,6 @@ class Robot:
     # Jog tool at target "pose" speed relative to work plane
     def MoveWorkVel(self, pose):
         return self.SendCommand(f'MoveLinVelWRF{tuple(pose)}')
-
-    # Move robot to target "pose" list relative to work plane
-    def MoveP(self, pose):
-        return self.SendCommand(f'MovePose{tuple(pose)}')
 
     # Set blend radius from 0-100%
     def SetBlending(self, percentage):
@@ -209,43 +216,37 @@ class Robot:
     def SetJointVel(self, percentage):
         return self.SendCommand(f'SetJointVel({percentage})')
 
+    # Add a new robot pose
+    def AddPose(self, poseName, pose):
+        self.pose[poseName] = pose
+
+    # Add a new robot joint position
+    def AddJoints(self, jointsName, joint):
+        self.joints[jointsName] = joint
+
     # Set tool frame to existing tool or arbitrary offset
     def SetTool(self, toolOffset):
-        if type(toolOffset) is int:
-            self.tool = toolOffset
-            self.SendCommand(f'SetTRF({self.toolFrames[toolOffset]})')
-        elif type(toolOffset) is list:
-            self.tool = None
-            self.SendCommand(f'SetTRF({toolOffset})')
+        sentTool = self._returnList(self.tool, toolOffset)
+        self.SendCommand(f'SetTRF({sentTool})')
 
     # Add a new tool frame to robot tools
-    def AddTool(self, toolOffset, index=-1):
-        if index >= 0:
-            self.toolFrames[index] = toolOffset
-        else:
-            if len(toolOffset) == 3:
-                for vector in range(3):
-                    toolOffset.append(0)
-            self.toolFrames.append(toolOffset)
+    def AddTool(self, toolName, toolOffset):
+        if len(toolOffset) == 3:
+            for vector in range(3):
+                toolOffset.append(0)
+        self.toolFrame[toolName] = toolOffset
 
     # Set work plane to existing plane or arbitrary offset
     def SetWork(self, workPlane):
-        if type(workPlane) is int:
-            self.work = workPlane
-            self.SendCommand(f'SetWRF({self.workPlanes[workPlane]})')
-        elif type(workPlane) is list:
-            self.work = workPlane
-            self.SendCommand(f'SetWRF({workPlane})')
+        sentWork = self._returnList(self.work, workPlane)
+        self.SendCommand(f'SetWRF({sentWork})')
 
-    # Add a new work plane frame to robot work planes
-    def AddWork(self, workPlane, index=-1):
-        if index >= 0:
-            self.workPlanes[index] = workPlane
-        else:
-            if len(workPlane) == 3:
-                for vector in range(3):
-                    toolOffset.append(0)
-            self.workPlanes.append(workPlane)
+    # Add a new work plane to robot workFrame dict
+    def AddWork(self, workName, workPlane):
+        if len(workPlane) == 3:
+            for vector in range(3):
+                workPlane.append(0)
+        self.workFrame[workName] = workPlane
 
     # Get list of current joint positions in degrees
     def GetJoints(self):
@@ -378,3 +379,15 @@ class Robot:
     def _checkPoseRotLimits(self, pose):
         for vector in pose:
             assert vector >= 0.001 and vector <= 300
+
+    # Convert internal pose to pose list if needed
+    def _returnList(self, poseDict, pose):
+        if type(pose) is str:
+            if pose in self.poseDict.keys():
+                return self.poseDict[pose]
+            else:
+                print('Not a valid pose!')
+                return None
+        else:
+            assert type(pose) is list
+            return pose

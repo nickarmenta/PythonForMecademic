@@ -33,7 +33,7 @@ user@host:~/PythonForMecademic$ docker build mecademic:latest .
 
 ## Using the library
 
-See ['OVERVIEW.md'](OVERVIEW.md) for a guide to how to use the module. 
+See [OVERVIEW.md](OVERVIEW.md) for a guide to how to use the module. 
 
 ## License
 

@@ -2,11 +2,7 @@
 
 The module is designed using a "high-dive" approach where high-level users can quickly get started and low-level users can get more fine-tuned control if needed.
 
-#### Supported Robots
-
- * Meca500 R3
-
-### Getting Started
+## Getting Started
 
 At it's simplest level you can connect to the robot and have it fully activated in 3 lines of code.
 
@@ -17,25 +13,26 @@ robot.Startup()
 print(f'Connected to {robot.product} FW version {robot.firmware}!')
 ```
 
-### Controlling the robot
+## Controlling the robot
 
-## Positioning
+### Positioning
 
 There are two types of positions: poses and joint positions.
-* Poses are in the cartesian space and are saved in lists of millimeters and degrees: \[x,y,z,rx,ry,rz].
-* Joint positions are saved in lists of degrees: \[j0,j1,j2,j3,j4,j5].
+* Poses are in the cartesian space and are saved in lists of millimeters and degrees
+* Joint positions are saved in lists of degrees.
+
 The robot can also store these positions for future reference.
 
 ```py
-pose = [95,0,200,0,90,0]
-joints = [0,-60,60,0,0,0]
+pose = [95,0,200,0,90,0] # [x,y,z,rx,ry,rz]
+joints = [0,-60,60,0,0,0] # [j0,j1,j2,j3,j4,j5]
 robot.AddPose('myPose', pose)
 robot.AddPose('myJoints', joints)
 ```
 
-## Moving
+### Moving
 
-There are 3 types of moves: joint, linear, and pose.
+There are 3 types of moves:
 * Joint (MoveJoints) moves the robot from one joint position to another in the shortest time possible.
 * Linear (MoveLinear) moves the robot from one pose to another in a straight line.
 * Pose (MovePose) moves the robot from one pose to another in the shortest time possible.
@@ -46,13 +43,13 @@ robot.MoveLinear(pose) # same as robot.MoveLinear('myPose')
 robot.MovePose(pose) # same as robot.MovePose('myPose')
 ```
 
-## Tool offsets and work frames
+### Tool offsets and work frames
 
 Tool offsets (TCP/TRF) and work planes (WRF) can be set and stored just like positions.
 
 ```py
-tool = [0,0,60,0,0,0]
-work = [200,0,0,60,0,0,0]
+tool = [0,0,60,0,0,0] # [x,y,z,rx,ry,rz]
+work = [200,0,0,60,0,0,0] # [x,y,z,rx,ry,rz]
 robot.AddTool('myTool', tool)
 robot.AddWork('myWork', work)
 robot.SetTool(tool) # same as robot.SetTool('myTool')

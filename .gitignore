@@ -106,5 +106,6 @@ venv.bak/
 # VS Code stuff
 *.code-workspace
 
-# Test stuff
+# Nick's stuff
 test.py
+RunDocker.sh

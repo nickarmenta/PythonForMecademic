@@ -2,11 +2,11 @@ FROM python:3.6-alpine
 
 RUN apk add --no-cache git
 
-COPY ./requirements.txt /requirements.txt
+WORKDIR /
+RUN git clone https://github.com/nickarmenta/PythonForMecademic
+WORKDIR /PythonForMecademic
 
-RUN pip install -r /requirements.txt
-RUN pip install git+https://github.com/Mecademic/python_driver
-
-COPY ./test.py /test.py
+RUN pip install -r /PythonForMecademic/requirements.txt
+RUN python /PythonForMecademic/setup.py
 
 CMD ["python","/test.py"]

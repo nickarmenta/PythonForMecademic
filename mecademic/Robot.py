@@ -4,6 +4,8 @@ import threading
 import logging
 logging.basicConfig(filename='meca.log', level=logging.DEBUG)
 
+PROGRAM_FILE = 'program_output.txt'
+
 # Dictionary of status indexes in robot status message
 statusDict = {'activated': 0,
             'homed': 1,
@@ -43,7 +45,7 @@ class Robot:
         self.ip = ip   
         self.connected = False
         # Initialize tool and work reference frames
-        self.pose = {'stow': [75,0,240,0,90,0]}
+        self.pose = {'stow': [75,0,240,0,90,0], 'home': [110,-150,130,-180,0,-180]}
         self.joints = {'stow': [0,-60,60,0,0,0]}
         self.toolFrame = {'flange': [0,0,0,0,0,0]}
         self.workFrame = {'base': [0,0,0,0,0,0]}
@@ -80,6 +82,9 @@ class Robot:
             logging.warning('Unable to connect to port 10001')
             self.connected = False
 
+        with open(PROGRAM_FILE,'w') as f:
+            f.write('')
+            f.close()
         return self.connected
 
     # Easy setup routine
@@ -101,6 +106,10 @@ class Robot:
 
     # Move robot in -Z of tool frame
     def Pull(self, mm): self.MoveToolRel([0,0,-mm,0,0,0])
+
+    def Wiggle(self):
+        self.MoveToolRel([0,0,0,4,0,0])
+        self.MoveToolRel([0,0,0,-4,0,0])
 
     # Move robot Z-offset of tool frame
     def Approach(self, pose, zOffset):
@@ -142,7 +151,7 @@ class Robot:
     # Move robot to target "pose" list relative to work plane
     def MovePose(self, pose):
         if self.GetStatus('paused'): self.ResumeMove()
-        sentPose = self._returnList(self.pose, pose)
+        sentPose = _returnList(self.pose, pose)
         if sentPose is not None: return self.SendCommand(f'MovePose{tuple(sentPose)}')
         else: return False
 
@@ -152,7 +161,7 @@ class Robot:
             logging.warning("Target position outside joint limits!")
             return False
         if self.GetStatus('paused'): self.ResumeMove()
-        sentJoints = self._returnList(self.joint, joints)
+        sentJoints = _returnList(self.joint, joints)
         if sentJoints is not None: return self.SendCommand(f'MoveJoints{tuple(sentJoints)}') 
         else: return False        
 
@@ -168,7 +177,7 @@ class Robot:
     # Move robot linearly to target "pose" list relative to work frame
     def MoveLinear(self, pose):
         if self.GetStatus('paused'): self.ResumeMove()
-        sentPose = self._returnList(self.pose, pose)
+        sentPose = _returnList(self.pose, pose)
         if sentPose is not None: return self.SendCommand(f'MoveLin{tuple(sentPose)}') 
         else: return False
 
@@ -226,7 +235,7 @@ class Robot:
 
     # Set tool frame to existing tool or arbitrary offset
     def SetTool(self, toolOffset):
-        sentTool = self._returnList(self.tool, toolOffset)
+        sentTool = _returnList(self.tool, toolOffset)
         self.SendCommand(f'SetTRF({sentTool})')
 
     # Add a new tool frame to robot tools
@@ -238,7 +247,7 @@ class Robot:
 
     # Set work plane to existing plane or arbitrary offset
     def SetWork(self, workPlane):
-        sentWork = self._returnList(self.work, workPlane)
+        sentWork = _returnList(self.work, workPlane)
         self.SendCommand(f'SetWRF({sentWork})')
 
     # Add a new work plane to robot workFrame dict
@@ -300,6 +309,7 @@ class Robot:
         if self.connected is False: self.Connect()
         
         if client == 'command':
+            _writeProgram(cmd)
             self.controlClient.send(bytes(f'{cmd}\0','ascii'))
             code, response = self.controlClient.recv(1024).decode('ascii')[1:-2].split('][')
             if int(code) in self._getCodes(cmd): return True
@@ -380,14 +390,40 @@ class Robot:
         for vector in pose:
             assert vector >= 0.001 and vector <= 300
 
-    # Convert internal pose to pose list if needed
-    def _returnList(self, poseDict, pose):
-        if type(pose) is str:
-            if pose in self.poseDict.keys():
-                return self.poseDict[pose]
-            else:
-                print('Not a valid pose!')
-                return None
+# Pose object
+class Pose():
+    def __init__(self, pose, coords='pose'):
+        self.coords = coords
+        self.pose = pose
+
+    # Ease of use 0-100% global speed adjustment
+    def SetSpeed(self, percentage):
+        # If speed is provided as fractional change to percentage
+        if percentage < 1: percentage *= 100
+        self.SetCartAcc(percentage)
+        self.SetCartAngVel(3*percentage)
+        self.SetCartLinVel(10*percentage)
+        self.SetJointAcc(1.5*percentage)
+        self.SetJointVel(percentage)
+        
+# Pose object
+class CompoundMove():
+    def __init__(self, pose, coords='pose'):
+        self.coords = coords
+
+# Convert internal pose to pose list if needed
+def _returnList(poseDict, pose):
+    if type(pose) is str:
+        if pose in poseDict.keys():
+            return poseDict[pose]
         else:
-            assert type(pose) is list
-            return pose
+            print('Not a valid pose!')
+            return None
+    else:
+        assert type(pose) is list
+        return pose
+
+def _writeProgram(command):
+     with open(PROGRAM_FILE,'a') as f:
+        f.write(f'{command}\n')
+        f.close()

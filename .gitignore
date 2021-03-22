@@ -108,4 +108,6 @@ venv.bak/
 
 # Nick's stuff
 test.py
+dance.py
 RunDocker.sh
+*.txt
